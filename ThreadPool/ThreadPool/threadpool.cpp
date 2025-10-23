@@ -80,11 +80,9 @@ Result ThreadPool::submitTask(std::shared_ptr<Task> sp)
 		return Result(sp,false); //Task Result
 	}
 
-	//如果有空余，把任务放入任务队列中
 	taskQue_.emplace(sp);
 	taskSize_++;
 
-	//因为新放了任务，任务队列肯定不空了 not_Empty进行通知，分配线程执行任务
 	notEmpty_.notify_all();
 
 	//cached模式 任务处理比较紧急 场景：小而快的任务 需要根据任务数量喝空闲线程的数量，判断是否需要创建新的线程出来
@@ -137,12 +135,10 @@ void ThreadPool::threadFunc(int threadid)
 {	
 	auto lastTime = std::chrono::high_resolution_clock().now();
 
-	//所有任务必须执行完成，线程池才可以回收所有的线程资源
 	for (;;)
 	{
 		std::shared_ptr<Task> task;  
 		{
-			//先获取锁
 			std::unique_lock<std::mutex> lock(taskQueMtx_);
 
 			std::cout << "tid:" << std::this_thread::get_id()

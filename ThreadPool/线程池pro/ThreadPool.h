@@ -80,7 +80,6 @@ public:
 	{
 		isPoolRunning_ = false;
 
-		//等待线程池里面所有的线程返回 有两种状态 1、阻塞 2、正在执行任务中
 		std::unique_lock<std::mutex> lock(taskQueMtx_);
 		notEmpty_.notify_all();
 		exitCond_.wait(lock, [&]()->bool {return threads_.size() == 0; });
@@ -136,7 +135,6 @@ public:
 		if (!notFull_.wait_for(lock, std::chrono::seconds(1),
 			[&]()->bool {return taskQue_.size() < taskQueMaxThreshHold_; }))
 		{
-			//表示notFull_等待1s钟，条件依然没有满足
 			std::cerr << "task queue is full, submit task fail." << std::endl;
 			auto task = std::make_shared<std::packaged_task<RType()>>([]()->RType {return RType(); });
 			(*task)();
@@ -156,14 +154,13 @@ public:
 			auto ptr = std::make_unique<Thread>(std::bind(&ThreadPool::threadFunc, this, std::placeholders::_1));  //第三个参数占位符
 			int threadId = ptr->getId();
 			threads_.emplace(threadId, std::move(ptr));
-			//启动线程
+
 			threads_[threadId]->start();
-			//修改线程个数相关的变量
+
 			curThreadSize_++;
 			idleThreadSize_++;
 		}
 
-		//返回任务的Result对象
 		return result;
 	}
 
@@ -187,8 +184,8 @@ public:
 
 		for (int i = 0; i < initThreadSize_; i++)
 		{
-			threads_[i]->start(); //需要执行一个线程函数
-			idleThreadSize_++; //记录初始空闲线程的数量
+			threads_[i]->start(); 
+			idleThreadSize_++;
 		}
 	}
 
@@ -201,12 +198,10 @@ private:
 	{
 		auto lastTime = std::chrono::high_resolution_clock().now();
 
-		//所有任务必须执行完成，线程池才可以回收所有的线程资源
 		for (;;)
 		{
 			Task task;
 			{
-				//先获取锁
 				std::unique_lock<std::mutex> lock(taskQueMtx_);
 
 				std::cout << "tid:" << std::this_thread::get_id()
@@ -219,28 +214,22 @@ private:
 				//每一秒钟返回一次 怎么区分超时返回还是有任务待执行返回
 				while (taskQue_.size() == 0)
 				{
-					//线程池要结束 回收线程资源
 					if (!isPoolRunning_)
 					{
 						threads_.erase(threadid);
 						std::cout << "threadid" << std::this_thread::get_id() << "exit" << std::endl;
 						exitCond_.notify_all();
-						return; //线程函数结束 线程结束
+						return;
 					}
 
 					if (poolMode_ == PoolMode::MODE_CACHED)
 					{
-						//条件变量，超时返回了
 						if (std::cv_status::timeout == notEmpty_.wait_for(lock, std::chrono::seconds(1)))
 						{
 							auto now = std::chrono::high_resolution_clock().now();
 							auto dur = std::chrono::duration_cast<std::chrono::seconds>(now - lastTime);
 							if (dur.count() >= THREAD_MAX_IDLE_TIME && curThreadSize_ > initThreadSize_)
 							{
-								//开始回收当前线程
-								//记录线程数量的相关变量的值修改
-								//把线程对象从线程列表容器中删除 没有办法匹配 threadFunc 对应哪个 thread对象
-								//threadid -> thread对象 -》删除
 								threads_.erase(threadid);
 								curThreadSize_--;
 								idleThreadSize_--;
@@ -252,7 +241,6 @@ private:
 					}
 					else
 					{
-						//等待notEmpty条件 阻塞当前线程，直到任务队列中有任务可处理  只有大于0才继续下面的代码
 						notEmpty_.wait(lock);
 					}
 				}
@@ -262,31 +250,25 @@ private:
 				std::cout << "tid:" << std::this_thread::get_id()
 					<< "获取任务成功!" << std::endl;
 
-				//从任务队列中去一个任务出来
 				task = taskQue_.front();
 				taskQue_.pop();
 				taskSize_--;
 
-				//如果依然有剩余任务，继续通知其他的线程执行任务
 				if (taskQue_.size() > 0)
 				{
 					notEmpty_.notify_all();
 				}
 
-				//取出一个任务，进行通知 通知可以继续提交生产任务
 				notFull_.notify_all();
-			}  // 通过作用域控制 std::unique_lock 的生命周期，实现锁的自动释放 不干扰其他线程
+			} 
 
-			//当前线程负责执行这个任务
 			if (task != nullptr)
 			{
-				//task->run(); //执行任务，把任务的返回值setVal方法给到Result
-				//task->exec();
-				task(); //执行function<void()>
+				task(); 
 			}
 
 			idleThreadSize_++;
-			lastTime = std::chrono::high_resolution_clock().now(); //更新线程执行完任务的时间
+			lastTime = std::chrono::high_resolution_clock().now();
 		}
 	}
 
@@ -297,7 +279,6 @@ private:
 	}
 
 private:
-	//std::vector<std::unique_ptr<Thread>> threads_; //线程列表
 	std::unordered_map<int, std::unique_ptr<Thread>> threads_; //线程列表
 
 	int initThreadSize_;  //初始的线程数量 
@@ -319,6 +300,6 @@ private:
 	std::atomic_bool isPoolRunning_; //表示当前线程池的启动状态
 };
 
-#endif // ! THREADPOOL_H
+#endif 
 
 
